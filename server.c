@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <string.h>
 #include <stdlib.h>
 #include <unistd.h>
 
@@ -6,30 +7,68 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 
+int bindServer(int *serverSocket, struct sockaddr_in server, int port) {
+    *serverSocket = socket(AF_INET, SOCK_STREAM, 0);
+    server.sin_family = AF_INET;
+    server.sin_port = htons(port);
+    server.sin_addr.s_addr = INADDR_ANY;
+
+    if(bind(*serverSocket, (struct sockaddr*) &server, sizeof(server)) == -1) {
+        return 1;
+    }
+    return 0;
+}
+
+int readFile(char **data, char *filename) {
+    FILE *file;
+    int numBytes;
+
+    file = fopen(filename, "r");
+    if(file == NULL)
+        return 1;
+
+    fseek(file, 0, SEEK_END);
+    numBytes = ftell(file);
+    fseek(file, 0, SEEK_SET);
+
+    *data = (char*)calloc(numBytes, sizeof(char));
+    if(*data == NULL)
+        return 1;
+
+    fread(*data, sizeof(char), numBytes, file);
+    fclose(file);
+
+    return 0;
+}
+
 int main() {
-
-    char serverMessage[256] = "You have reached the server";
-
+    
+    char *htmlFile;
+    char *htmlData;
+    char *responseData;
     int serverSocket;
-    serverSocket = socket(AF_INET, SOCK_STREAM, 0);
+    struct sockaddr_in serverAddress;
+    char httpHeader[2048] = "HTTP/1.1 200 OK\r\n\n";
+    
+    if (readFile(&htmlData, "./pages/index.html") != 0) 
+        return 1;
 
-    struct sockaddr_in serverAddress;  
-    serverAddress.sin_family = AF_INET;
-    serverAddress.sin_port = htons(1337);
-    serverAddress.sin_addr.s_addr = INADDR_ANY;
+    strcat(httpHeader, htmlData);
+    free(htmlData);
 
-    if(bind(serverSocket, (struct sockaddr*) &serverAddress, sizeof(serverAddress)) == -1) {
+    if (bindServer(&serverSocket, serverAddress, 1337) != 0) {
         printf("Bind not successful");
         return 1;
     }
-
-    listen(serverSocket, 5);
     
+    listen(serverSocket, 5);
     int clientSocket;
-    clientSocket = accept(serverSocket, NULL, NULL);
+    while(1) {
+        clientSocket = accept(serverSocket, NULL, NULL);
+        send(clientSocket, httpHeader, sizeof(httpHeader), 0);
+        close(clientSocket);
+    }
 
-    send(clientSocket, serverMessage, sizeof(serverMessage), 0);
-
-    close(serverSocket);
+    free(responseData);
     return 0;
 }
