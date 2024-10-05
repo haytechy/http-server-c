@@ -7,15 +7,23 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 
+
+
 int bindServer(int *serverSocket, struct sockaddr_in server, int port) {
     *serverSocket = socket(AF_INET, SOCK_STREAM, 0);
     server.sin_family = AF_INET;
     server.sin_port = htons(port);
     server.sin_addr.s_addr = INADDR_ANY;
 
-    if(bind(*serverSocket, (struct sockaddr*) &server, sizeof(server)) == -1) {
-        return 1;
+    int reuse = 1;
+    if (setsockopt(*serverSocket, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse)) < 0) {
+        return -2;
     }
+
+    if(bind(*serverSocket, (struct sockaddr*) &server, sizeof(server)) == -1) {
+        return -1;
+    }
+
     return 0;
 }
 
@@ -41,20 +49,30 @@ int readFile(char **data, char *filename) {
     return 0;
 }
 
+int getRoute(char **route, char *requestdata) {
+    char temp[2048];
+    strcpy(temp, requestdata);
+    int i=0;
+    while(temp[i] != '/') {
+        i += 1;
+    }
+    *route = temp+i;
+    while(temp[i] != 0x20) {
+        i += 1;
+    }
+    temp[i] = 0x0;
+    return 0;
+}
+
 int main() {
-    
-    char *htmlFile;
-    char *htmlData;
-    char *responseData;
     int serverSocket;
     struct sockaddr_in serverAddress;
-    char httpHeader[2048] = "HTTP/1.1 200 OK\r\n\n";
-    
-    if (readFile(&htmlData, "./pages/index.html") != 0) 
-        return 1;
+    const char request200[2048] = "HTTP/1.1 200 OK\r\n\n";
+    const char request404[2048] = "HTTP/1.1 404 NOT FOUND\r\n\n";
 
-    strcat(httpHeader, htmlData);
-    free(htmlData);
+    char httpHeader[2048];
+    char pages[2048] = "./pages";
+    
 
     if (bindServer(&serverSocket, serverAddress, 1337) != 0) {
         printf("Bind not successful");
@@ -63,12 +81,24 @@ int main() {
     
     listen(serverSocket, 5);
     int clientSocket;
-    while(1) {
-        clientSocket = accept(serverSocket, NULL, NULL);
+    char *route;
+    char requestData[2048];
+
+    clientSocket = accept(serverSocket, NULL, NULL);
+    recv(clientSocket, requestData, sizeof(requestData), 0);
+    getRoute(&route, requestData);
+
+    char *htmlData;
+    if (readFile(&htmlData, strcat(pages, route)) != 0) {
+        strncpy(httpHeader, request404, 2048);
         send(clientSocket, httpHeader, sizeof(httpHeader), 0);
-        close(clientSocket);
+        return 1;
     }
 
-    free(responseData);
+    strncpy(httpHeader, request200, 2048);
+    strncat(httpHeader, htmlData, 2048);
+
+    send(clientSocket, httpHeader, sizeof(httpHeader), 0);
+    close(clientSocket);
     return 0;
 }
