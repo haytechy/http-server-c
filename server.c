@@ -74,8 +74,13 @@ int main() {
     char pages[2048] = "./pages";
     
 
-    if (bindServer(&serverSocket, serverAddress, 1337) != 0) {
-        printf("Bind not successful");
+    if (bindServer(&serverSocket, serverAddress, 1337) == -1) {
+        printf("Bind not successful\n");
+        return 1;
+    }
+
+    if (bindServer(&serverSocket, serverAddress, 1337) == -2) {
+        printf("Socket Options not successful\n");
         return 1;
     }
     
