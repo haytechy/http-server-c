@@ -9,4 +9,4 @@ gcc server.c -o server
 ./server
 ```
 
-Then navigate to (localhost:1337).
+Then navigate to [](localhost:1337).
