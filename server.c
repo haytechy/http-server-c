@@ -7,7 +7,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 
-
+#define MAXSIZE 2048
 
 int bindServer(int *serverSocket, struct sockaddr_in server, int port) {
     *serverSocket = socket(AF_INET, SOCK_STREAM, 0);
@@ -28,35 +28,42 @@ int bindServer(int *serverSocket, struct sockaddr_in server, int port) {
 }
 
 int readFile(char **data, char *route) {
-    char filename[2048] = "./pages";
-    strncat(filename, route, 2048);
+    char filename[MAXSIZE] = "./pages";
+    strncat(filename, route, MAXSIZE);
     FILE *file;
     int numBytes;
 
-    file = fopen(filename, "r");
+    if(strcmp(strchr(filename, '.'), ".gif") == 0) {
+        file = fopen(filename, "rb");
+    }
+    else {
+        file = fopen(filename, "r");
+    }
+
     if(file == NULL) {
         printf("File not found \n");
-        return 1;
+        return -1;
     }
 
     fseek(file, 0, SEEK_END);
     numBytes = ftell(file);
-    fseek(file, 0, SEEK_SET);
+    rewind(file);
 
     *data = (char*)calloc(numBytes, sizeof(char));
     if(*data == NULL) {
         printf("Allocation Failed \n");
-        return 1;
+        return -2;
     }
 
-    fread(*data, sizeof(char), numBytes, file);
+    fread(*data, numBytes, 1, file);
     fclose(file);
 
-    return 0;
+    return numBytes;
 }
 
+
 int getRoute(char **route, char *requestdata) {
-    char temp[2048];
+    char temp[MAXSIZE];
     strcpy(temp, requestdata);
     int i=0;
     int base=0;
@@ -72,18 +79,18 @@ int getRoute(char **route, char *requestdata) {
     return 0;
 }
 
-int sendResponse(int socket, const char* header, char* body) {
-    char response[2048]; 
-    strncpy(response, header, 2048);
-    strncat(response, body, 2048);
-    send(socket, response, sizeof(response), 0);
+int sendResponse(int socket, const char* header, int headerLen, char* body, int bodyLen) {
+    char* response = (char*) calloc(headerLen+bodyLen, sizeof(char)); 
+    memcpy(response, header, headerLen);
+    memcpy(response+headerLen, body, bodyLen);
+    send(socket, response, headerLen+bodyLen, 0);
     return 0;
 }
 
 int main() {
-    const char response200[2048] = "HTTP/1.1 200 OK\r\n\n";
-    const char response404[2048] = "HTTP/1.1 404 NOT FOUND\r\n\n";
-    const char response500[2048] = "HTTP/1.1 Internal Server Error\r\n\n";
+    const char response200[MAXSIZE] = "HTTP/1.1 200 OK\r\n\n";
+    const char response404[MAXSIZE] = "HTTP/1.1 404 NOT FOUND\r\n\n";
+    const char response500[MAXSIZE] = "HTTP/1.1 500 Internal Server Error\r\n\n";
 
     struct sockaddr_in serverAddress;
     int serverSocket;
@@ -100,10 +107,10 @@ int main() {
     }
     
     int clientSocket;
-    int file;
-    char requestData[2048];
+    int fileBytes;
+    char requestData[MAXSIZE];
     char *htmlData;
-    char *route = (char*) calloc(2048, sizeof(char));
+    char *route = (char*) calloc(MAXSIZE, sizeof(char));
     const char* header;
 
     listen(serverSocket, 5);
@@ -114,34 +121,30 @@ int main() {
         getRoute(&route, requestData);
         
         if(strcmp(route, "/") == 0) {
-            if (readFile(&htmlData, "/index.html") == 0) {
-                header = response200;
-                sendResponse(clientSocket, header, htmlData);
-                close(clientSocket);
-                continue;
-            }
+            strcpy(route, "/index.html");
         }
 
-        file = readFile(&htmlData, route);
+        fileBytes = readFile(&htmlData, route);
 
-        if (file == 1) {
-            if (readFile(&htmlData, "/404.html") == 0) {
+        if (fileBytes == -1) {
+            fileBytes = readFile(&htmlData, "/404.html");
+            if (fileBytes >= 0) {
                 header = response404;
-                sendResponse(clientSocket, header, htmlData);
+                sendResponse(clientSocket, header, strlen(header), htmlData, fileBytes);
                 close(clientSocket);
                 continue;
             }
         }
 
-        if (file == 0) {
+        if (fileBytes >= 0) {
             header = response200;
-            sendResponse(clientSocket, header, htmlData);
+            sendResponse(clientSocket, header, strlen(header), htmlData, fileBytes);
             close(clientSocket);
             continue;
         }
 
         header = response500;
-        sendResponse(clientSocket, header, htmlData);
+        sendResponse(clientSocket, header, strlen(header) , htmlData, fileBytes);
         close(clientSocket);
     }
     free(htmlData);
