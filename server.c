@@ -79,32 +79,38 @@ int getRoute(char **route, char *requestdata) {
     return 0;
 }
 
-int sendResponse(int socket, const char* header, int headerLen, char* body, int bodyLen) {
+int sendResponse(int socket, const char* header, int headerLen, const char* body, int bodyLen) {
     char* response = (char*) calloc(headerLen+bodyLen, sizeof(char)); 
     memcpy(response, header, headerLen);
     memcpy(response+headerLen, body, bodyLen);
     send(socket, response, headerLen+bodyLen, 0);
+    free(response);
     return 0;
 }
 
+
 int main() {
-    const char response200[MAXSIZE] = "HTTP/1.1 200 OK\r\n\n";
-    const char response404[MAXSIZE] = "HTTP/1.1 404 NOT FOUND\r\n\n";
-    const char response500[MAXSIZE] = "HTTP/1.1 500 Internal Server Error\r\n\n";
+    const char response200[MAXSIZE] = "HTTP/1.1 200 OK\r\n\r\n";
+    const char response404[MAXSIZE] = "HTTP/1.1 404 NOT FOUND\r\n\r\n";
+    const char response500[MAXSIZE] = "HTTP/1.1 500 Internal Server Error\r\n\r\n";
 
     struct sockaddr_in serverAddress;
     int serverSocket;
     int bind = bindServer(&serverSocket, serverAddress, 1337);
 
     if (bind == -1) {
-        printf("Bind not successful");
+        printf("Bind not successful\n");
         return 1;
     }
 
     if (bind == -2) {
-        printf("Socket options not sucessful");
+        printf("Socket options not sucessful\n");
         return 1;
     }
+
+    printf("Starting Server on http://localhost:1337\n");
+    fflush(stdout);
+
     
     int clientSocket;
     int fileBytes;
@@ -117,7 +123,9 @@ int main() {
 
     while(1)  {
         clientSocket = accept(serverSocket, NULL, NULL);
-        recv(clientSocket, requestData, sizeof(requestData), 0);
+        requestData[0] = 0;
+        if (recv(clientSocket, requestData, sizeof(requestData), 0) == -1) 
+            continue;
         getRoute(&route, requestData);
         
         if(strcmp(route, "/") == 0) {

@@ -7,7 +7,23 @@
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <h1>Hello World</h1> 
-    <img src="banana-dance.gif" style="width: 25%; max-width: 25%; height: auto;">
+    <img src="banana-text.gif" style="width: 25%; display: block; margin-left: auto; margin-right: auto;">
+    <img src="banana-dance.gif" style="width: 25%; margin-left: auto; margin-right: auto; height: auto;">
+<script>
+function getRandomColor() {
+    var letters = '0123456789ABCDEF';
+    var color = '#';
+    for (var i = 0; i < 6; i++ ) {
+        color += letters[Math.floor(Math.random() * 16)];
+    }
+    return color;
+}
+
+function changeColor(){
+  document.body.style.backgroundColor= getRandomColor();
+}
+
+setInterval(changeColor,1000);
+</script>
 </body>
 </html>
